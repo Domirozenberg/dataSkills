@@ -2,12 +2,14 @@ import psycopg2
 import csv
 import sys
 import os
-import io  # Used to create an in-memory file-like object for COPY_FROM
+import io
+import pandas as pd  # Import pandas for data manipulation
 
 
 def load_csv_to_postgres(csv_file_path, table_name, db_config):
     """
     Loads data from a CSV file into a PostgreSQL table.
+    Removes extraneous double quotes from string values before loading.
 
     Args:
         csv_file_path (str): The path to the CSV file.
@@ -23,71 +25,56 @@ def load_csv_to_postgres(csv_file_path, table_name, db_config):
         cur = conn.cursor()
         print("Database connection established successfully.")
 
-        # --- Step 1: Infer schema and create table (example - you'll need to adapt this) ---
-        # In a real scenario, you would robustly infer types or have a predefined schema.
-        # For simplicity, this example assumes the CSV structure.
-        # You would typically read the header and a few rows to determine data types.
-        # For now, let's assume a simple table for demonstration.
-        # YOU WILL NEED TO ADAPT THIS `CREATE TABLE` STATEMENT
-        # BASED ON YOUR ACTUAL CSV COLUMNS AND DESIRED DATA TYPES!
-
-        # -- Create a schema
-        create_table_sql = f"""
+        # --- Create Schema (as you had it) ---
+        create_schema_sql = f"""
         CREATE SCHEMA IF NOT EXISTS sources AUTHORIZATION postgres;
         """
-        print(f"Attempting to create schema sqlLearningDB.sources if it doesn't exist...")
-        print(create_table_sql)  # For debugging, see the generated SQL
-        cur.execute(create_table_sql)
+        print(f"Attempting to create schema sources if it doesn't exist...")
+        cur.execute(create_schema_sql)
         conn.commit()
-        print(f"Table sqlLearningDB.sources checked/created successfully.")
+        print(f"Schema 'sources' checked/created successfully.")
 
-        # Read the header to get column names
-        with open(csv_file_path, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            header = next(reader)  # Get the first row as header
+        # --- Step 1: Read CSV, Infer Schema (basic), and Clean Data ---
+        print(f"Reading CSV file '{csv_file_path}' for schema inference and cleaning...")
+        df = pd.read_csv(csv_file_path, dtype=str)  # Read all columns as string to handle quotes consistently
 
-        # Basic type inference (very simplistic for demonstration)
-        # For a robust solution, you'd iterate through data, check for numbers, dates etc.
+        # --- IMPORTANT: Data Cleaning (Removing unwanted quotes) ---
+        # Iterate over all string/object columns and remove double quotes
+        for col in df.select_dtypes(include=['object']).columns:
+            df[col] = df[col].astype(str).str.replace("'", "", regex=False)  # Use regex=False for literal replacement
+
+        print("Data cleaning (removing quotes) complete.")
+
+        # Infer basic schema from DataFrame columns
         columns_with_types = []
-        for col_name in header:
-            # Default to TEXT, you'd add more sophisticated logic here
-            columns_with_types.append(f'"{col_name}" TEXT')  # Quote column names in case they are keywords
+        for col_name, dtype in df.dtypes.items():
+            # For this basic inference, we'll still default to TEXT.
+            # A more advanced inference would check for numeric/date types.
+            columns_with_types.append(f'"{col_name}" TEXT')  # Quote column names for safety
 
         create_table_sql = f"""
         CREATE TABLE IF NOT EXISTS {table_name} (
             {', '.join(columns_with_types)}
         );
         """
+        print(f"Generated CREATE TABLE SQL: {create_table_sql}")
         print(f"Attempting to create table '{table_name}' if it doesn't exist...")
-        print(create_table_sql)  # For debugging, see the generated SQL
         cur.execute(create_table_sql)
         conn.commit()
         print(f"Table '{table_name}' checked/created successfully.")
 
-        # --- Step 2: Load data using COPY_FROM ---
-        # Open the CSV file and wrap it in an in-memory buffer for COPY_FROM
-        # COPY_FROM is faster than row-by-row INSERTs for large datasets.
-        with open(csv_file_path, 'r', encoding='utf-8') as f:
-            # We skip the header for COPY, as the table structure defines it.
-            next(f)  # Skip header row if your CSV has one and your table doesn't map it.
-            # Or, if you want to include header in table, remove this line and
-            # ensure your CREATE TABLE statement is accurate and you
-            # include HEADER option in COPY FROM
+        # --- Step 2: Load cleaned data using COPY_FROM ---
+        # Convert DataFrame to CSV string in memory
+        csv_buffer = io.StringIO()
+        # Write to buffer without quoting values that don't need it, and without an index
+        df.to_csv(csv_buffer, index=False, quoting=csv.QUOTE_MINIMAL)
+        csv_buffer.seek(0)  # Rewind the buffer to the beginning
 
-            # Use io.StringIO to create a file-like object from the CSV content
-            # that COPY_FROM can read directly.
-            # It's better to pass the file object directly if possible, but
-            # sometimes buffering can help.
-            # In most cases, `cur.copy_from(f, table_name, sep=',')` is sufficient
-            # for text files and is more memory efficient for very large files.
-            # Let's use the direct file object method for efficiency.
-
-            # Re-open file or seek to beginning if you skipped header for table creation
-            f.seek(0)
-            # Skip header if CSV has one
-            cur.copy_expert(f"COPY {table_name} FROM STDIN WITH CSV HEADER", f)
-            conn.commit()
-            print(f"Data from '{csv_file_path}' loaded into '{table_name}' successfully.")
+        print(f"Loading cleaned data into '{table_name}' using COPY_EXPERT...")
+        # Use copy_expert with StringIO buffer
+        cur.copy_expert(f"COPY {table_name} FROM STDIN WITH CSV HEADER", csv_buffer)
+        conn.commit()
+        print(f"Data from '{csv_file_path}' loaded into '{table_name}' successfully.")
 
     except psycopg2.Error as e:
         print(f"Database error: {e}")
@@ -95,6 +82,8 @@ def load_csv_to_postgres(csv_file_path, table_name, db_config):
             conn.rollback()  # Rollback changes on error
     except FileNotFoundError:
         print(f"Error: CSV file not found at '{csv_file_path}'")
+    except pd.errors.EmptyDataError:
+        print(f"Error: CSV file '{csv_file_path}' is empty.")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
     finally:
@@ -106,64 +95,31 @@ def load_csv_to_postgres(csv_file_path, table_name, db_config):
 
 if __name__ == "__main__":
     # --- Configuration ---
-    # Replace with your actual database connection details
     db_connection_details = {
-        'host': 'localhost',  # Or your PostgreSQL server IP/hostname
+        'host': 'localhost',
         'database': 'sqlLearningDB',
         'user': 'postgres',
         'password': 'postgres',
-        'port': '5430'  # Default PostgreSQL port
+        'port': '5430'
     }
 
-
+    # --- File/Path Handling ---
     if len(sys.argv) == 2:
-        # Command-line argument for directory provided
-        input_file = sys.argv[1]
+        input_file_path = sys.argv[1]  # This is now the full path to the CSV
     else:
-        # Prompt user for directory name
-        input_file = input("Enter the name of the JSON file to up: ")
-    print(f"File is '{input_file}'")
+        # Prompt user for file path if not provided
+        input_file_path = input("Enter the full path to the CSV file to upload: ")
 
-    base_name = os.path.basename(input_file)
-    print(f"Base name: {base_name}")  # Output: test.csv
+    print(f"Processing file: '{input_file_path}'")
 
-    # Get the name without the extension (test)
+    # Extract table name from file path
+    base_name = os.path.basename(input_file_path)
     file_name_without_extension = os.path.splitext(base_name)[0]
-    print(f"File name without extension: {file_name_without_extension}")  # Output: test
 
-    # Replace with your CSV file path and desired table name
-    csv_file_path = input_file  # e.g., 'athletes.csv'
-    target_table_name = 'sources.'+file_name_without_extension # e.g., 'athletes'
+    # Target table name includes schema
+    target_table_name = 'sources.' + file_name_without_extension
 
-    print(f"File is '{csv_file_path}'")
-    print(f"File is '{target_table_name}'")
-
-
-    # --- Important: Prepare your CSV and Table Schema ---
-    # The `CREATE TABLE` part of this script is a *very basic example*.
-    # For a real dataset, you NEED to manually define your table schema
-    # with correct column names and data types that match your CSV.
-    # If your CSV has headers, `COPY ... WITH CSV HEADER` will map them
-    # automatically if your table column names match.
-    # Otherwise, you'll specify column order in the COPY command.
-
-    # Example: If your CSV (athletes.csv) looks like:
-    # id,name,age,country
-    # 1,John Doe,30,USA
-    # 2,Jane Smith,25,CAN
-    #
-    # You would adjust the `CREATE TABLE` part to:
-    # create_table_sql = f"""
-    # CREATE TABLE IF NOT EXISTS {table_name} (
-    #     id INT PRIMARY KEY,
-    #     name VARCHAR(255),
-    #     age INT,
-    #     country VARCHAR(3)
-    # );
-    # """
-    #
-    # And then the COPY_FROM command `cur.copy_expert(f"COPY {table_name} FROM STDIN WITH CSV HEADER", f)`
-    # should work assuming column names match.
+    print(f"Target table name: '{target_table_name}'")
 
     # Call the function to load the data
-    load_csv_to_postgres(csv_file_path, target_table_name, db_connection_details)
+    load_csv_to_postgres(input_file_path, target_table_name, db_connection_details)
