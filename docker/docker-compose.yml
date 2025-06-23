@@ -1,0 +1,21 @@
+services:
+  db: # Define a service named 'db' for the PostgreSQL database
+    image: postgres # Use the official PostgreSQL 16 image (alpine for smaller size)
+    container_name: my-postgres-db # Assign a custom name to the container
+    environment:
+      POSTGRES_DB: sqlLearningDB # Name of the database to create
+      POSTGRES_USER: postgres # Username for the database
+      POSTGRES_PASSWORD: postgres # Password for the database user
+    volumes:
+      - parisjo2024-data:/var/lib/postgresql/data # Mount a named volume for data persistence
+    ports:
+      - "5430:5432" # Map host port 5432 to container port 5432
+    restart: unless-stopped # Always restart the container unless explicitly stopped
+    healthcheck: # Define a health check to ensure the database is ready
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sqlLearningDB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  parisjo2024-data: # Define the named volume for data persistence
