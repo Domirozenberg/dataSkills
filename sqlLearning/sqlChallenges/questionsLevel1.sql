@@ -17,3 +17,6 @@
 
 --TABLE: nocs
 -- Find the country long name for the NOC code 'USA'
+
+-- TABLE: technical_officials
+-- List the name of judges with the first name 'Marie'
