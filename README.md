@@ -102,6 +102,6 @@ chosen SQL client with the following details:
 ## How to Use This Project 
 
 1. **Explore the Schema:** After connecting to the database, take time to explore the tables and their columns 
-2. **Navigate SQL Challenges:** The <repository-directory>/sqlLearning/sqlChallenges directory contains files for each SQL level. 
+2. **Navigate SQL Challenges:** The repository-directory/sqlLearning/sqlChallenges directory contains files for each SQL level. 
 3. **Solve Business Questions:** Each level will present specific business questions in .sql files. Your task is to write the SQL queries to answer them effectively. 
 4. **Verify Your Answers:** Execute your queries and compare your results to the expected outcomes.
