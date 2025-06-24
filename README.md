@@ -61,12 +61,13 @@ You will be using these tables to answer a wide array of business questions.
 
 ## Prerequisites
 
-* Git. Dowload it from https://git-scm.com
-* Docker Desktop: Ensure Docker Desktop is installed and running on your system (Windows, macOS, or Linux). Download it from docker.com. 
-* A SQL Client: Choose your preferred tool to connect to PostgreSQL: 
+* **Python:** Download it from https://python.org
+* **Git:** Download it from https://git-scm.com
+* **Docker Desktop:** Ensure Docker Desktop is installed and running on your system (Windows, macOS, or Linux). Download it from https://docs.docker.com
+* **A SQL Client:** Choose your preferred tool to connect to PostgreSQL: 
     * psql (Command Line): The native PostgreSQL command-line client. 
-    * pgAdmin: A popular graphical administration and development tool for PostgreSQL. Download from pgadmin.org. 
-    * DBeaver: A universal database tool supporting PostgreSQL and many others.Download from dbeaver.io. 
+    * pgAdmin: A popular graphical administration and development tool for PostgreSQL. Download from https://pgadmin.org. 
+    * DBeaver: A universal database tool supporting PostgreSQL and many others.Download from https://dbeaver.io. 
 
 ## Setup Instructions
 
@@ -83,7 +84,7 @@ docker compose up
 
 3. Populate the database
 ```
-cd <repository-directory>/src
+cd <repository-directory>/sqlLearning/src
 python3 load_all_csv_to_postgres.py ../dataset
 ```
 
@@ -101,6 +102,6 @@ chosen SQL client with the following details:
 ## How to Use This Project 
 
 1. **Explore the Schema:** After connecting to the database, take time to explore the tables and their columns 
-2. **Navigate SQL Challenges:** The sqlChallenges directory contains files for each SQL level. 
+2. **Navigate SQL Challenges:** The <repository-directory>/sqlLearning/sqlChallenges directory contains files for each SQL level. 
 3. **Solve Business Questions:** Each level will present specific business questions in .sql files. Your task is to write the SQL queries to answer them effectively. 
 4. **Verify Your Answers:** Execute your queries and compare your results to the expected outcomes.
